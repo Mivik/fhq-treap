@@ -185,11 +185,25 @@ impl<K: Ord, V> TreapMap<K, V> {
     	res
     }
 
-    pub fn rank(&self, key: &K) -> u32 {
+    pub fn num_lt(&self, key: &K) -> u32 {
         let mut x = self;
         let mut r = 0;
         while let Some(node) = &x.0 {
             if key <= &node.key {
+                x = &node.left;
+            } else {
+                r += node.left.len() + 1;
+                x = &node.right;
+            }
+        }
+        r
+    }
+
+    pub fn num_le(&self, key: &K) -> u32 {
+        let mut x = self;
+        let mut r = 0;
+        while let Some(node) = &x.0 {
+            if key < &node.key {
                 x = &node.left;
             } else {
                 r += node.left.len() + 1;
@@ -397,8 +411,13 @@ impl<K: Ord> TreapSet<K> {
     }
 
     #[inline]
-    pub fn rank(&self, key: &K) -> u32 {
-        self.0.rank(key)
+    pub fn num_lt(&self, key: &K) -> u32 {
+        self.0.num_lt(key)
+    }
+
+    #[inline]
+    pub fn num_le(&self, key: &K) -> u32 {
+        self.0.num_le(key)
     }
 
     #[inline]
