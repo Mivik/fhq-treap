@@ -1,0 +1,16 @@
+[package]
+name = "fhq-treap"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+rand = "0.8.5"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false
