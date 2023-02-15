@@ -51,15 +51,32 @@ impl<K: Ord, V> TreapMap<K, V> {
         self.0.as_ref().map_or(0, |it| it.size)
     }
 
-    pub fn split(self, key: &K) -> (Self, Self) {
+    pub fn split_lt(self, key: &K) -> (Self, Self) {
         let Some(mut x) = self.0 else { return Default::default(); };
         if key <= &x.key {
-            let (l, r) = x.left.split(key);
+            let (l, r) = x.left.split_lt(key);
             x.left = r;
+            x.maintain();
             (l, x.into())
         } else {
-            let (l, r) = x.right.split(key);
+            let (l, r) = x.right.split_lt(key);
             x.right = l;
+            x.maintain();
+            (x.into(), r)
+        }
+    }
+
+    pub fn split_le(self, key: &K) -> (Self, Self) {
+        let Some(mut x) = self.0 else { return Default::default(); };
+        if key < &x.key {
+            let (l, r) = x.left.split_le(key);
+            x.left = r;
+            x.maintain();
+            (l, x.into())
+        } else {
+            let (l, r) = x.right.split_le(key);
+            x.right = l;
+            x.maintain();
             (x.into(), r)
         }
     }
@@ -73,10 +90,12 @@ impl<K: Ord, V> TreapMap<K, V> {
         if n <= ls {
             let (l, r) = x.left.split_n(n);
             x.left = r;
+            x.maintain();
             (l, x.into())
         } else {
             let (l, r) = x.right.split_n(n - ls - 1);
             x.right = l;
+            x.maintain();
             (x.into(), r)
         }
     }
@@ -142,7 +161,7 @@ impl<K: Ord, V> TreapMap<K, V> {
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        let (l, mut r) = std::mem::take(self).split(&key);
+        let (l, mut r) = std::mem::take(self).split_lt(&key);
         if let Some((k, v)) = r.min_mut() {
             if k == &key {
                 let res = std::mem::replace(v, value);
@@ -153,6 +172,17 @@ impl<K: Ord, V> TreapMap<K, V> {
         let node = NodeData::new(key, value).into();
         *self = Self::merge(Self::merge(l, node), r);
         None
+    }
+
+    pub fn remove(&mut self, key: &K) -> Option<V> {
+    	let (l, r) = std::mem::take(self).split_lt(&key);
+    	let (m, r) = r.split_le(key);
+    	let mut res = None;
+    	if let Some(m) = m.0 {
+    		res = Some(m.value);
+    	}
+    	*self = Self::merge(l, r);
+    	res
     }
 
     pub fn rank(&self, key: &K) -> u32 {
@@ -346,7 +376,7 @@ impl<K: Ord> TreapSet<K> {
 
     #[inline]
     pub fn split(self, key: &K) -> (Self, Self) {
-        let (l, r) = self.0.split(key);
+        let (l, r) = self.0.split_lt(key);
         (Self(l), Self(r))
     }
 
