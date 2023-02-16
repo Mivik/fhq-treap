@@ -1,4 +1,8 @@
-use std::{iter::Peekable, cmp::Ordering};
+use std::{
+    cmp::Ordering,
+    iter::Peekable,
+    ops::{Deref, Range},
+};
 
 struct NodeData<K: Ord, V> {
     left: TreapMap<K, V>,
@@ -42,7 +46,7 @@ impl<K: Ord, V> From<Box<NodeData<K, V>>> for TreapMap<K, V> {
 }
 
 impl<K: Ord, V> TreapMap<K, V> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self(None)
     }
 
@@ -115,49 +119,49 @@ impl<K: Ord, V> TreapMap<K, V> {
     }
 
     fn get_kv(&self, key: &K) -> Option<(&K, &V)> {
-    	let mut x = self;
-    	loop {
-    		let Some(node) = &x.0 else { return None };
-    		match key.cmp(&node.key) {
-    			Ordering::Less => {
-    				x = &node.left;
-    			}
-    			Ordering::Equal => {
-    				return Some((&node.key, &node.value));
-    			}
-    			Ordering::Greater => {
-    				x = &node.right;
-    			}
-    		}
-    	}
+        let mut x = self;
+        loop {
+            let Some(node) = &x.0 else { return None };
+            match key.cmp(&node.key) {
+                Ordering::Less => {
+                    x = &node.left;
+                }
+                Ordering::Equal => {
+                    return Some((&node.key, &node.value));
+                }
+                Ordering::Greater => {
+                    x = &node.right;
+                }
+            }
+        }
     }
 
     fn get_kv_mut(&mut self, key: &K) -> Option<(&K, &mut V)> {
-    	let mut x = self;
-    	loop {
-    		let Some(node) = &mut x.0 else { return None };
-    		match key.cmp(&node.key) {
-    			Ordering::Less => {
-    				x = &mut node.left;
-    			}
-    			Ordering::Equal => {
-    				return Some((&node.key, &mut node.value));
-    			}
-    			Ordering::Greater => {
-    				x = &mut node.right;
-    			}
-    		}
-    	}
+        let mut x = self;
+        loop {
+            let Some(node) = &mut x.0 else { return None };
+            match key.cmp(&node.key) {
+                Ordering::Less => {
+                    x = &mut node.left;
+                }
+                Ordering::Equal => {
+                    return Some((&node.key, &mut node.value));
+                }
+                Ordering::Greater => {
+                    x = &mut node.right;
+                }
+            }
+        }
     }
 
     #[inline]
     pub fn get(&self, key: &K) -> Option<&V> {
-    	self.get_kv(key).map(|it| it.1)
+        self.get_kv(key).map(|it| it.1)
     }
 
     #[inline]
     pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-    	self.get_kv_mut(key).map(|it| it.1)
+        self.get_kv_mut(key).map(|it| it.1)
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
@@ -175,14 +179,14 @@ impl<K: Ord, V> TreapMap<K, V> {
     }
 
     pub fn remove(&mut self, key: &K) -> Option<V> {
-    	let (l, r) = std::mem::take(self).split_lt(&key);
-    	let (m, r) = r.split_le(key);
-    	let mut res = None;
-    	if let Some(m) = m.0 {
-    		res = Some(m.value);
-    	}
-    	*self = Self::merge(l, r);
-    	res
+        let (l, r) = std::mem::take(self).split_lt(&key);
+        let (m, r) = r.split_le(key);
+        let mut res = None;
+        if let Some(m) = m.0 {
+            res = Some(m.value);
+        }
+        *self = Self::merge(l, r);
+        res
     }
 
     pub fn num_lt(&self, key: &K) -> u32 {
@@ -217,6 +221,7 @@ impl<K: Ord, V> TreapMap<K, V> {
         if n >= self.len() {
             return None;
         }
+        n += 1;
         let mut x = self;
         loop {
             let Some(node) = &x.0 else { unreachable!() };
@@ -237,6 +242,7 @@ impl<K: Ord, V> TreapMap<K, V> {
         if n >= self.len() {
             return None;
         }
+        n += 1;
         let mut x = self;
         loop {
             let Some(node) = &mut x.0 else { unreachable!() };
@@ -294,7 +300,145 @@ impl<K: Ord, V> TreapMap<K, V> {
         }
         Some((&x.key, &mut x.value))
     }
+
+    pub fn slice(&self, range: Range<u32>) -> Iter<'_, K, V> {
+        let Range { start: l, end: r } = range;
+        let r = r.min(self.len());
+        if l >= r {
+            return Iter {
+                stack: Vec::new(),
+                remaining: 0,
+                rev: false,
+            };
+        }
+        let mut stack: Vec<&NodeData<K, V>> = Vec::new();
+        let mut n = l + 1;
+        let mut x = self;
+        loop {
+            let Some(node) = &x.0 else { unreachable!() };
+            stack.push(node);
+            let ls = node.left.len();
+            if n <= ls {
+                x = &node.left;
+            } else {
+                n -= ls + 1;
+                if n == 0 {
+                    break;
+                }
+                x = &node.right;
+            }
+        }
+        Iter {
+            stack,
+            remaining: r - l,
+            rev: false,
+        }
+    }
+
+    pub fn rev_slice(&self, range: Range<u32>) -> Iter<'_, K, V> {
+        let Range { start: l, end: r } = range;
+        let r = r.min(self.len());
+        if l >= r {
+            return Iter {
+                stack: Vec::new(),
+                remaining: 0,
+                rev: false,
+            };
+        }
+        let mut iter = self.slice((r - 1)..r);
+        iter.remaining = r - l;
+        iter.rev = true;
+        iter
+    }
 }
+
+pub struct Iter<'a, K: Ord, V> {
+    stack: Vec<&'a NodeData<K, V>>,
+    remaining: u32,
+    rev: bool,
+}
+
+impl<'a, K: Ord, V> Iter<'a, K, V> {
+    fn move_next(&mut self) {
+        let Some(mut last) = self.stack.pop() else { return };
+        if let Some(mut node) = &last.right.0.as_deref() {
+            self.stack.push(last);
+            loop {
+                self.stack.push(node);
+                node = match &node.left.0 {
+                    Some(x) => x,
+                    None => return,
+                }
+            }
+        }
+        while let Some(parent) = self.stack.pop() {
+            if parent
+                .right
+                .0
+                .as_ref()
+                .map_or(false, |it| std::ptr::eq(it.deref(), last))
+            {
+                last = parent;
+                continue;
+            } else {
+                self.stack.push(parent);
+                return;
+            }
+        }
+    }
+
+    fn move_prev(&mut self) {
+        let Some(mut last) = self.stack.pop() else { return };
+        if let Some(mut node) = &last.left.0.as_deref() {
+            self.stack.push(last);
+            loop {
+                self.stack.push(node);
+                node = match &node.right.0 {
+                    Some(x) => x,
+                    None => return,
+                }
+            }
+        }
+        while let Some(parent) = self.stack.pop() {
+            if parent
+                .left
+                .0
+                .as_ref()
+                .map_or(false, |it| std::ptr::eq(it.deref(), last))
+            {
+                last = parent;
+                continue;
+            } else {
+                self.stack.push(parent);
+                return;
+            }
+        }
+    }
+}
+
+impl<'a, K: Ord, V> Iterator for Iter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining == 0 {
+            return None; // quick reject
+        }
+        let res = self.stack.last().map(|it| (&it.key, &it.value));
+        self.remaining -= 1;
+        if self.rev {
+            self.move_prev();
+        } else {
+            self.move_next();
+        }
+        res
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining as usize, Some(self.remaining as usize))
+    }
+}
+
+impl<'a, K: Ord, V> ExactSizeIterator for Iter<'a, K, V> {}
 
 impl<K: Ord, V> TreapMap<K, V> {
     pub fn from_sorted_iter(iter: impl Iterator<Item = (K, V)>) -> Self {
@@ -437,7 +581,7 @@ impl<K: Ord> TreapSet<K> {
 
     #[inline]
     pub fn get(&self, key: &K) -> Option<&K> {
-    	self.0.get_kv(key).map(|it| it.0)
+        self.0.get_kv(key).map(|it| it.0)
     }
 }
 
